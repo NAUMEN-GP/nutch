@@ -91,6 +91,8 @@
      <ant dir="urlnormalizer-querystring" target="deploy"/>
      <ant dir="urlnormalizer-regex" target="deploy"/>
      <ant dir="urlnormalizer-slash" target="deploy"/>
+     <ant dir="index-blacklist-whitelist" target="deploy"/>
+     <ant dir="indexer-crawled" target="deploy"/>
   </target>
 
   <!-- ====================================================== -->
@@ -138,6 +140,8 @@
      <ant dir="urlnormalizer-querystring" target="test"/>
      <ant dir="urlnormalizer-regex" target="test"/>
      <ant dir="urlnormalizer-slash" target="test"/>
+     <ant dir="index-blacklist-whitelist" target="test"/>
+     <ant dir="indexer-crawled" target="test"/>
     </parallel>
   </target>
 
@@ -211,5 +215,7 @@
     <ant dir="urlnormalizer-querystring" target="clean"/>
     <ant dir="urlnormalizer-regex" target="clean"/>
     <ant dir="urlnormalizer-slash" target="clean"/>
+    <ant dir="index-blacklist-whitelist" target="clean"/>
+    <ant dir="indexer-crawled" target="clean"/>
   </target>
 </project>

@@ -30,12 +30,10 @@ import org.apache.nutch.service.model.response.JobInfo;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Queues;
 
-
-
 public class NutchServerPoolExecutor extends ThreadPoolExecutor{
 
-  private Queue<JobWorker> workersHistory;
-  private Queue<JobWorker> runningWorkers;
+  private final Queue<JobWorker> workersHistory;
+  private final Queue<JobWorker> runningWorkers;
 
   public NutchServerPoolExecutor(int corePoolSize, int maxPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue){
     super(corePoolSize, maxPoolSize, keepAliveTime, unit, workQueue);
@@ -53,10 +51,10 @@ public class NutchServerPoolExecutor extends ThreadPoolExecutor{
   @Override
   protected void afterExecute(Runnable runnable, Throwable throwable) {
     super.afterExecute(runnable, throwable);
-    synchronized (runningWorkers) {
-      runningWorkers.remove(((JobWorker) runnable).getInfo());
-    }
     JobWorker worker = ((JobWorker) runnable);
+    synchronized (runningWorkers) {
+      runningWorkers.remove(worker);
+    }
     addStatusToHistory(worker);
   }
 
