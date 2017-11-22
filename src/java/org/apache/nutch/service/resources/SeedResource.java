@@ -20,6 +20,7 @@ import java.io.OutputStream;
 import java.lang.invoke.MethodHandles;
 import java.util.Collection;
 import java.util.Map;
+import java.util.UUID;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
@@ -91,7 +92,7 @@ public class SeedResource extends AbstractResource {
   }
 
   private String writeToSeedFile(Collection<SeedUrl> seedUrls) throws Exception {
-    String seedFilePath = "seedFiles/seed-" + System.currentTimeMillis();
+    String seedFilePath = "seedFiles/seed-" + UUID.randomUUID().toString();
     org.apache.hadoop.fs.Path seedFolder = new org.apache.hadoop.fs.Path(seedFilePath);
     FileSystem fs = FileSystem.get(new Configuration());
     if(!fs.exists(seedFolder)) {
