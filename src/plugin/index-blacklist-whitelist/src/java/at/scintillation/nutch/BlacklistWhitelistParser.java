@@ -1,7 +1,5 @@
 package at.scintillation.nutch;
 
-import java.util.Arrays;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -10,10 +8,21 @@ import org.apache.nutch.parse.HtmlParseFilter;
 import org.apache.nutch.parse.Parse;
 import org.apache.nutch.parse.ParseResult;
 import org.apache.nutch.protocol.Content;
-import org.apache.nutch.util.NodeWalker;
 import org.w3c.dom.DocumentFragment;
+import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Class to parse the content and apply a blacklist or whitelist. The content is stored in 
@@ -25,39 +34,54 @@ import org.w3c.dom.NodeList;
  * 
  * @author Elisabeth Adler
  */
-public class BlacklistWhitelistParser implements HtmlParseFilter
-{
+public class BlacklistWhitelistParser implements HtmlParseFilter {
 
-    public static final Log LOG = LogFactory.getLog("at.scintillation.nutch");
+    private static final Log LOG = LogFactory.getLog("at.scintillation.nutch");
+    private static final TransformerFactory transformers = TransformerFactory.newInstance();
 
     private Configuration conf;
 
     private String[] blacklist;
-
     private String[] whitelist;
 
     @Override
-    public ParseResult filter(Content content, ParseResult parseResult, HTMLMetaTags metaTags, DocumentFragment doc)
-    {
-        Parse parse = parseResult.get(content.getUrl());
+    public ParseResult filter(Content content, ParseResult parseResult, HTMLMetaTags metaTags, DocumentFragment doc) {
+        try {
 
-        DocumentFragment rootToIndex = null;
-        StringBuffer strippedContent = new StringBuffer();
-        if ((this.whitelist != null) && (this.whitelist.length > 0))
-        {
-            LOG.info("Applying whitelist...");
-            rootToIndex = (DocumentFragment) doc.cloneNode(false);
-            whitelisting(doc, rootToIndex);
-        }
-        else if ((this.blacklist != null) && (this.blacklist.length > 0))
-        {
-            LOG.info("Applying blacklist...");
-            rootToIndex = (DocumentFragment) doc.cloneNode(true);
-            blacklisting(rootToIndex);
-        }
+            Parse parse = parseResult.get(content.getUrl());
 
-        getText(strippedContent, rootToIndex); // extract text to index
-        parse.getData().getContentMeta().set("strippedContent", strippedContent.toString());
+            DocumentFragment rootToIndex = null;
+            if ((this.whitelist != null) && (this.whitelist.length > 0)) {
+                LOG.info("Applying whitelist...");
+                rootToIndex = (DocumentFragment) doc.cloneNode(false);
+                whitelisting(doc, rootToIndex);
+            } else if ((this.blacklist != null) && (this.blacklist.length > 0)) {
+                LOG.info("Applying blacklist...");
+                rootToIndex = (DocumentFragment) doc.cloneNode(true);
+                blacklisting(rootToIndex);
+            }
+
+            if (rootToIndex != null) {
+                cleanSelected(rootToIndex); // extract text to index
+
+                StringWriter sw = new StringWriter();
+                try {
+                    Transformer t = transformers.newTransformer();
+                    t.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+                    t.setOutputProperty(OutputKeys.METHOD, "html");
+                    t.transform(new DOMSource(rootToIndex), new StreamResult(sw));
+                } catch (TransformerException e) {
+                    sw.write("");
+                }
+
+                LOG.warn(sw.toString());
+                parse.getData().getContentMeta().set("strippedContent", sw.toString());
+            }
+
+        } catch (Exception e) {
+            LOG.error("error", e);
+            throw e;
+        }
 
         return parseResult;
     }
@@ -67,57 +91,19 @@ public class BlacklistWhitelistParser implements HtmlParseFilter
      * blacklist configuration to empty
      * @param pNode Root node
      */
-    private void blacklisting(Node pNode)
-    {
-        boolean wasStripped = false;
-        String type = pNode.getNodeName().toLowerCase();
-        String id = null;
-        String className = null;
-        if (pNode.hasAttributes())
-        {
-            Node node = pNode.getAttributes().getNamedItem("id");
-            id = (node != null) ? node.getNodeValue().toLowerCase() : null;
-
-            node = pNode.getAttributes().getNamedItem("class");
-            className = (node != null) ? node.getNodeValue().toLowerCase() : null;
-        }
-
-        String typeAndId = type + "#" + id;
-        String typeAndClass = type + "." + className;
-
-        // check if the given element is in blacklist: either only the element type, or type and id or type and class
-        boolean inList = false;
-        if (type != null && Arrays.binarySearch(this.blacklist, type) >= 0)
-            inList = true;
-        else if (type != null && id != null && Arrays.binarySearch(this.blacklist, typeAndId) >= 0)
-            inList = true;
-        else if (type != null && className != null && Arrays.binarySearch(this.blacklist, typeAndClass) >= 0)
-            inList = true;
-
-        if (LOG.isTraceEnabled())
-            LOG.trace("In blacklist: " + inList + " (" + type + " or " + typeAndId + " or " + typeAndClass + ")");
-
-        if (inList)
-        {
+    private void blacklisting(Node pNode) {
+        if (inList(false, pNode)) {
             // can't remove this node, but we can strip it
-            if (LOG.isTraceEnabled())
-                LOG.trace("Removing " + type + (id != null ? "#" + id : (className != null ? "." + className : "")));
             pNode.setNodeValue("");
             // remove all children for this node
             while (pNode.hasChildNodes())
                 pNode.removeChild(pNode.getFirstChild());
-            wasStripped = true;
-        }
-
-        if (!wasStripped)
-        {
+        } else {
             // process the children recursively
             NodeList children = pNode.getChildNodes();
-            if (children != null)
-            {
+            if (children != null) {
                 int len = children.getLength();
-                for (int i = 0; i < len; i++)
-                {
+                for (int i = 0; i < len; i++) {
                     blacklisting(children.item(i));
                 }
             }
@@ -131,108 +117,98 @@ public class BlacklistWhitelistParser implements HtmlParseFilter
      * @param pNode Root node
      * @param newNode node containing only the allowed elements
      */
-    private void whitelisting(Node pNode, Node newNode)
-    {
-        boolean wasStripped = false;
-        String type = pNode.getNodeName().toLowerCase();
-        String id = null;
-        String className = null;
-        if (pNode.hasAttributes())
-        {
-            Node node = pNode.getAttributes().getNamedItem("id");
-            id = (node != null) ? node.getNodeValue().toLowerCase() : null;
-
-            node = pNode.getAttributes().getNamedItem("class");
-            className = (node != null) ? node.getNodeValue().toLowerCase() : null;
-        }
-
-        String typeAndId = type + "#" + id;
-        String typeAndClass = type + "." + className;
-
-        // check if the given element is in whitelist: either only the element type, or type and id or type and class
-        boolean inList = false;
-        if (type != null && Arrays.binarySearch(this.whitelist, type) >= 0)
-            inList = true;
-        else if (type != null && id != null && Arrays.binarySearch(this.whitelist, typeAndId) >= 0)
-            inList = true;
-        else if (type != null && className != null && Arrays.binarySearch(this.whitelist, typeAndClass) >= 0)
-            inList = true;
-
-        if (LOG.isTraceEnabled())
-            LOG.trace("In whitelist: " + inList + " (" + type + " or " + typeAndId + " or " + typeAndClass + ")");
-
-        if (inList)
-        {
-            // can't remove this node, but we can strip it
-            if (LOG.isTraceEnabled())
-                LOG.trace("Using " + type + (id != null ? "#" + id : (className != null ? "." + className : "")));
+    private void whitelisting(Node pNode, Node newNode) {
+        if (inList(true, pNode)) {
+            // append listed node to result
             newNode.appendChild(pNode.cloneNode(true));
-            wasStripped = true;
-        }
-
-        if (!wasStripped)
-        {
+        } else {
             // process the children recursively
             NodeList children = pNode.getChildNodes();
-            if (children != null)
-            {
+            if (children != null) {
                 int len = children.getLength();
-                for (int i = 0; i < len; i++)
-                {
+                for (int i = 0; i < len; i++) {
                     whitelisting(children.item(i), newNode);
                 }
             }
         }
     }
 
+    private boolean inList(boolean whitelist, Node node) {
+        String[] list = whitelist ? this.whitelist : this.blacklist;
+        String type = node.getNodeName().toLowerCase();
+        String typeAndId = null;
+        String typeAndClass = null;
+        if (node.hasAttributes()) {
+            Node attr = node.getAttributes().getNamedItem("id");
+            typeAndId = (attr != null) ? type + "#" + attr.getNodeValue().toLowerCase() : null;
+
+            attr = node.getAttributes().getNamedItem("class");
+            typeAndClass = (attr != null) ? type + "." + attr.getNodeValue().toLowerCase() : null;
+        }
+
+        // check if the given element is in white- or black- list: either only the element type, or type and id or type and class
+        boolean inList = Arrays.binarySearch(list, type) >= 0 ||
+                (typeAndId != null && Arrays.binarySearch(list, typeAndId) >= 0) ||
+                (typeAndClass != null && Arrays.binarySearch(list, typeAndClass) >= 0);
+
+        if (LOG.isTraceEnabled()) {
+            String listType = (whitelist ? "whitelist" : "blacklist");
+            String nodeIs = (typeAndId != null ? typeAndId : (typeAndClass != null ? typeAndClass : type));
+            LOG.trace(String.format("In %s: %b (is %s)", listType, inList, nodeIs));
+        }
+
+        return inList;
+    }
+
     /**
      * copied from {@link org.apache.nutch.parse.html.DOMContentUtils}
      */
-    private boolean getText(StringBuffer sb, Node node)
-    {
-        boolean abort = false;
-        NodeWalker walker = new NodeWalker(node);
-        
-        while (walker.hasNext()) {
-        
-          Node currentNode = walker.nextNode();
-          String nodeName = currentNode.getNodeName();
-          short nodeType = currentNode.getNodeType();
-          
-          if ("script".equalsIgnoreCase(nodeName)) {
-            walker.skipChildren();
-          }
-          if ("style".equalsIgnoreCase(nodeName)) {
-            walker.skipChildren();
-          }
-          if (nodeType == Node.COMMENT_NODE) {
-            walker.skipChildren();
-          }
-          if (nodeType == Node.TEXT_NODE) {
-            // cleanup and trim the value
-            String text = currentNode.getNodeValue();
-            text = text.replaceAll("\\s+", " ");
-            text = text.trim();
-            if (text.length() > 0) {
-              if (sb.length() > 0) sb.append(' ');
-                sb.append(text);
+    private void cleanSelected(Node node) {
+        List<Node> removingList = new ArrayList<>();
+
+        NodeList children = node.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            LOG.warn(child.getNodeType() + " " + child.getNodeName());
+
+            if (child.getNodeType() == Node.COMMENT_NODE) {
+                removingList.add(child);
+            } else if (child.getNodeType() == Node.ELEMENT_NODE) {
+                if (nodeHasName(child, "style") || nodeHasName(child, "script")) {
+                    removingList.add(child);
+                } else {
+                    cleanSelected(child);
+                }
             }
-          }
         }
-        
-        return abort;
+
+        if (node.hasAttributes()) {
+            removeAttributeIfExists(node, "id");
+            removeAttributeIfExists(node, "class");
+            removeAttributeIfExists(node, "style");
+        }
+
+        for (Node removing: removingList) {
+            node.removeChild(removing);
+        }
     }
 
-    public void setConf(Configuration conf)
-    {
+    private boolean nodeHasName(Node node, String name) {
+        return name.equals(node.getNodeName());
+    }
+
+    private void removeAttributeIfExists(Node node, String name) {
+        NamedNodeMap attributes = node.getAttributes();
+        if (attributes.getNamedItem(name) != null) attributes.removeNamedItem(name);
+    }
+
+    public void setConf(Configuration conf) {
         this.conf = conf;
         // parse configuration for blacklist
         this.blacklist = null;
         String elementsToExclude = getConf().get("parser.html.blacklist", null);
-        if ((elementsToExclude != null) && (elementsToExclude.trim().length() > 0))
-        {
-            elementsToExclude = elementsToExclude.toLowerCase(); // convert to lower case so that there's no case
-                                                                 // problems
+        if ((elementsToExclude != null) && (elementsToExclude.trim().length() > 0)) {
+            elementsToExclude = elementsToExclude.toLowerCase(); // convert to lower case so that there's no case problems
             LOG.info("Configured using [parser.html.blacklist] to ignore elements [" + elementsToExclude + "]...");
             this.blacklist = elementsToExclude.split(",");
             Arrays.sort(this.blacklist); // required for binary search
@@ -241,18 +217,15 @@ public class BlacklistWhitelistParser implements HtmlParseFilter
         // parse configuration for whitelist
         this.whitelist = null;
         String elementsToInclude = getConf().get("parser.html.whitelist", null);
-        if ((elementsToInclude != null) && (elementsToInclude.trim().length() > 0))
-        {
-            elementsToInclude = elementsToInclude.toLowerCase(); // convert to lower case so that there's no case
-                                                                 // problems
+        if ((elementsToInclude != null) && (elementsToInclude.trim().length() > 0)) {
+            elementsToInclude = elementsToInclude.toLowerCase(); // convert to lower case so that there's no case problems
             LOG.info("Configured using [parser.html.whitelist] to only use elements [" + elementsToInclude + "]...");
             this.whitelist = elementsToInclude.split(",");
             Arrays.sort(this.whitelist); // required for binary search
         }
     }
 
-    public Configuration getConf()
-    {
+    public Configuration getConf() {
         return this.conf;
     }
 

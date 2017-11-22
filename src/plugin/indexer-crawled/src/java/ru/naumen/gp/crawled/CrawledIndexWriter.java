@@ -140,8 +140,8 @@ public class CrawledIndexWriter implements IndexWriter {
         Collection<Map<String, Object>> res = new ArrayList<>(forAdd.size());
         for (NutchDocument doc : forAdd) {
             Map<String, Object> docMap = new HashMap<>();
+            docMap.put("title", doc.getFieldValue("title"));
             docMap.put("url", doc.getFieldValue("url"));
-            LOG.warn(doc.getFieldValue("strippedContent").toString());
             docMap.put("content", doc.getFieldValue("strippedContent"));
             docMap.put("checksum", doc.getFieldValue("digest"));
             docMap.put("tstamp", doc.getFieldValue("tstamp"));

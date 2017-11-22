@@ -12,35 +12,30 @@ import org.apache.nutch.parse.Parse;
 /**
  * Class to index the content which has been parsed and stored in the {@link BlacklistWhitelistParser}.
  * The Lucene index field name containing the stripped content is called "strippedContent".
- * 
+ *
  * @author Elisabeth Adler
  */
-public class BlacklistWhitelistIndexer implements IndexingFilter
-{
+public class BlacklistWhitelistIndexer implements IndexingFilter {
 
     private Configuration conf;
 
     @Override
     public NutchDocument filter(NutchDocument doc, Parse parse, Text url, CrawlDatum datum, Inlinks inlinks)
-        throws IndexingException
-    {
+            throws IndexingException {
         // Attempt to get the headings
         String strippedContent = parse.getData().getMeta("strippedContent");
-        if (strippedContent != null)
-        {
+        if (strippedContent != null) {
             doc.add("strippedContent", strippedContent);
         }
 
         return doc;
     }
 
-    public void setConf(Configuration conf)
-    {
+    public void setConf(Configuration conf) {
         this.conf = conf;
     }
 
-    public Configuration getConf()
-    {
+    public Configuration getConf() {
         return this.conf;
     }
 
