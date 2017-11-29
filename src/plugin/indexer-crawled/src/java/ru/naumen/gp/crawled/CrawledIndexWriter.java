@@ -113,8 +113,7 @@ public class CrawledIndexWriter implements IndexWriter {
         HttpEntity entity = new StringEntity(data, StandardCharsets.UTF_8);
 
         HttpPost request = new HttpPost(url);
-        //request.addHeader(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8");
-        request.addHeader(HttpHeaders.CONTENT_TYPE, "text/plain; charset=utf-8");
+        request.addHeader(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8");
         request.setEntity(entity);
 
         try (CloseableHttpResponse response = http.execute(request)) {
