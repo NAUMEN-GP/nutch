@@ -5,5 +5,5 @@ public interface CrawledConstants {
 
     public static final String SERVER_URL = CRAWLED_PREFIX + "url";
     public static final String BATCH_SIZE = CRAWLED_PREFIX + "batchSize";
-    public static final String CRAWLED_SOURCE_ID = CRAWLED_PREFIX + "sourceId";
+    public static final String CRAWLED_SCAN_ID = CRAWLED_PREFIX + "scanId";
 }
