@@ -34,11 +34,10 @@ public class CrawledIndexWriter implements IndexWriter {
     private Configuration configuration;
     private String apiUrl;
     private int batchSize;
-    private String crawledSourceId;
+    private String crawledScanId;
 
     private CloseableHttpClient http;
     private Collection<NutchDocument> forAdd;
-    private Collection<String> forDelete;
     private ObjectMapper jsonMapper = new ObjectMapper();
 
     private String getConfig(String key) {
@@ -57,10 +56,9 @@ public class CrawledIndexWriter implements IndexWriter {
         this.configuration = configuration;
 
         this.apiUrl = getConfig(CrawledConstants.SERVER_URL);
-        this.crawledSourceId = getConfig(CrawledConstants.CRAWLED_SOURCE_ID);
+        this.crawledScanId = getConfig(CrawledConstants.CRAWLED_SCAN_ID);
         this.batchSize = configuration.getInt(CrawledConstants.BATCH_SIZE, 100);
         this.forAdd = new ArrayList<>(this.batchSize);
-        this.forDelete = new ArrayList<>(this.batchSize);
     }
 
     @Override
@@ -76,9 +74,11 @@ public class CrawledIndexWriter implements IndexWriter {
     }
 
     private void add(NutchDocument doc) throws IOException {
-        forAdd.add(doc);
-
-        if (forAdd.size() >= batchSize) commit();
+        String strippedContent = (String) doc.getFieldValue("strippedContent");
+        if (strippedContent != null && !strippedContent.trim().isEmpty()) {
+            forAdd.add(doc);
+            if (forAdd.size() >= batchSize) commit();
+        }
     }
 
     @Override
@@ -96,8 +96,7 @@ public class CrawledIndexWriter implements IndexWriter {
             LOG.trace("delete doc with key {}", key);
         }
 
-        forDelete.add(key);
-        if (forDelete.size() >= batchSize) commit();
+        LOG.warn("Crawled does not use nutch delete functionality!");
     }
 
     @Override
@@ -108,8 +107,8 @@ public class CrawledIndexWriter implements IndexWriter {
         add(doc);
     }
 
-    private void request(String path, String data) throws IOException {
-        String url = apiUrl + path;
+    private void save(String data) throws IOException {
+        String url = apiUrl + "/save";
         HttpEntity entity = new StringEntity(data, StandardCharsets.UTF_8);
 
         HttpPost request = new HttpPost(url);
@@ -135,8 +134,8 @@ public class CrawledIndexWriter implements IndexWriter {
         }
     }
 
-    private Collection<Map<String, Object>> prepareForAdd() {
-        Collection<Map<String, Object>> res = new ArrayList<>(forAdd.size());
+    private Map<String, Object> prepareForAdd() {
+        Collection<Map<String, Object>> docs = new ArrayList<>(forAdd.size());
         for (NutchDocument doc : forAdd) {
             Map<String, Object> docMap = new HashMap<>();
             docMap.put("title", doc.getFieldValue("title"));
@@ -144,10 +143,13 @@ public class CrawledIndexWriter implements IndexWriter {
             docMap.put("content", doc.getFieldValue("strippedContent"));
             docMap.put("checksum", doc.getFieldValue("digest"));
             docMap.put("tstamp", doc.getFieldValue("tstamp"));
-            docMap.put("sourceId", crawledSourceId);
-            res.add(docMap);
+            docs.add(docMap);
         }
-        return res;
+
+        Map<String, Object> batchMap = new HashMap<>();
+        batchMap.put("scanId", crawledScanId);
+        batchMap.put("documents", docs);
+        return batchMap;
     }
 
     @Override
@@ -161,21 +163,8 @@ public class CrawledIndexWriter implements IndexWriter {
                 LOG.trace(json);
             }
 
-            request("/save", json);
+            save(json);
             forAdd.clear();
-        }
-
-        if (!forDelete.isEmpty()) {
-            LOG.info("trying to mark deleted docs for app");
-
-            String json = jsonMapper.writeValueAsString(forDelete);
-
-            if (LOG.isTraceEnabled()) {
-                LOG.trace(json);
-            }
-
-            request("/markDeleted", json);
-            forDelete.clear();
         }
     }
 
@@ -184,7 +173,6 @@ public class CrawledIndexWriter implements IndexWriter {
         commit();
         http.close();
         LOG.info("end of indexing; close");
-        //TODO goodbye to crawled?
     }
 
     @Override
