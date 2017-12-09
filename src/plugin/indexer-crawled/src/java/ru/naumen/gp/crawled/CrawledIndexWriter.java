@@ -18,7 +18,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.lang.invoke.MethodHandles;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -26,10 +25,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static ru.naumen.gp.crawled.CrawledConstants.SIGNIFICANT_CONTENT;
+
 public class CrawledIndexWriter implements IndexWriter {
 
-    private static final Logger LOG = LoggerFactory
-            .getLogger(MethodHandles.lookup().lookupClass());
+    private static final Logger LOG = LoggerFactory.getLogger("ru.naumen.gp.crawled");
 
     private Configuration configuration;
     private String apiUrl;
@@ -91,20 +91,21 @@ public class CrawledIndexWriter implements IndexWriter {
     }
 
     @Override
+    public void update(NutchDocument doc) throws IOException {
+        if (LOG.isTraceEnabled()) {
+            LOG.trace("update doc {}", doc.getField("id"));
+        }
+
+        add(doc);
+    }
+
+    @Override
     public void delete(String key) throws IOException {
         if (LOG.isTraceEnabled()) {
             LOG.trace("delete doc with key {}", key);
         }
 
         LOG.warn("Crawled does not use nutch delete functionality!");
-    }
-
-    @Override
-    public void update(NutchDocument doc) throws IOException {
-        if (LOG.isTraceEnabled()) {
-            LOG.trace("update doc {}", doc.getField("id"));
-        }
-        add(doc);
     }
 
     private void save(String data) throws IOException {
@@ -134,36 +135,38 @@ public class CrawledIndexWriter implements IndexWriter {
         }
     }
 
-    private Map<String, Object> prepareForAdd() {
+    private String serializeForAdd() throws IOException {
         Collection<Map<String, Object>> docs = new ArrayList<>(forAdd.size());
         for (NutchDocument doc : forAdd) {
             Map<String, Object> docMap = new HashMap<>();
             docMap.put("title", doc.getFieldValue("title"));
             docMap.put("url", doc.getFieldValue("url"));
-            docMap.put("content", doc.getFieldValue("strippedContent"));
             docMap.put("checksum", doc.getFieldValue("digest"));
             docMap.put("tstamp", doc.getFieldValue("tstamp"));
+            docMap.put("content", doc.getFieldValue(SIGNIFICANT_CONTENT));
             docs.add(docMap);
         }
 
         Map<String, Object> batchMap = new HashMap<>();
         batchMap.put("scanId", crawledScanId);
         batchMap.put("documents", docs);
-        return batchMap;
+
+        String json = jsonMapper.writeValueAsString(batchMap);
+
+        if (LOG.isDebugEnabled()) {
+            LOG.debug(json);
+        }
+
+        return json;
     }
 
     @Override
     public void commit() throws IOException {
         if (!forAdd.isEmpty()) {
-            LOG.info("trying to send docs to app");
-
-            String json = jsonMapper.writeValueAsString(prepareForAdd());
-
             if (LOG.isTraceEnabled()) {
-                LOG.trace(json);
+                LOG.trace("trying to send docs to app");
             }
-
-            save(json);
+            save(serializeForAdd());
             forAdd.clear();
         }
     }
