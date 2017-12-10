@@ -1,9 +1,14 @@
 package ru.naumen.gp.crawled;
 
 public interface CrawledConstants {
-    public static final String CRAWLED_PREFIX = "crawled.";
+    String CRAWLED_PREFIX = "crawled.";
 
-    public static final String SERVER_URL = CRAWLED_PREFIX + "url";
-    public static final String BATCH_SIZE = CRAWLED_PREFIX + "batchSize";
-    public static final String CRAWLED_SCAN_ID = CRAWLED_PREFIX + "scanId";
+    String SERVER_URL = CRAWLED_PREFIX + "url";
+    String BATCH_SIZE = CRAWLED_PREFIX + "batchSize";
+    String CRAWLED_SCAN_ID = CRAWLED_PREFIX + "scanId";
+
+    String CONTENT_SELECTORS = CRAWLED_PREFIX + "content.selectors";
+    String CONTENT_MIN_LENGTH = CRAWLED_PREFIX + "content.minLength";
+
+    String SIGNIFICANT_CONTENT = "significantContent";
 }

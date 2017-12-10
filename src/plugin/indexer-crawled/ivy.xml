@@ -18,11 +18,11 @@
 -->
 
 <ivy-module version="1.0">
-  <info organisation="org.apache.nutch" module="${ant.project.name}">
+  <info organisation="ru.naumen.gp" module="${ant.project.name}">
     <license name="Apache 2.0"/>
-    <ivyauthor name="Apache Nutch Team" url="http://nutch.apache.org"/>
+    <ivyauthor name="Naumen GP" url="http://naumen"/>
     <description>
-        Apache Nutch
+        Naumen
     </description>
   </info>
 
@@ -37,6 +37,7 @@
 
   <dependencies>
     <dependency org="org.apache.httpcomponents" name="httpclient" rev="4.5.3" conf="*->default"/>
+    <dependency org="org.jsoup" name="jsoup" rev="1.11.2" conf="*->default"/>
   </dependencies>
   
 </ivy-module>

@@ -15,25 +15,39 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 -->
-<plugin id="indexer-crawled" name="CrawledIndexWriter" version="1.0.0"
-  provider-name="nutch.apache.org">
+<plugin id="indexer-crawled" name="CrawledIndexUtil" version="1.0.0" provider-name="gp.naumen.ru">
 
-  <runtime>
-    <library name="indexer-crawled.jar">
-      <export name="*" />
-    </library>
-      <library name="httpclient-4.5.3.jar"/>
-  </runtime>
+    <runtime>
+        <library name="indexer-crawled.jar">
+            <export name="*"/>
+        </library>
+        <library name="httpclient-4.5.3.jar"/>
+        <library name="jsoup-1.11.2.jar"/>
+    </runtime>
 
-  <requires>
-    <import plugin="nutch-extensionpoints" />
-  </requires>
+    <requires>
+        <import plugin="nutch-extensionpoints"/>
+    </requires>
 
-  <extension id="org.apache.nutch.indexer.crawled"
-    name="Crawled Index Writer"
-    point="org.apache.nutch.indexer.IndexWriter">
-    <implementation id="CrawledIndexWriter"
-      class="ru.naumen.gp.crawled.CrawledIndexWriter" />
-  </extension>
+    <extension id="ru.naumen.gp.crawled.CrawledIndexWriter"
+               name="Crawled Index Writer"
+               point="org.apache.nutch.indexer.IndexWriter">
+        <implementation id="CrawledIndexWriter"
+                        class="ru.naumen.gp.crawled.CrawledIndexWriter"/>
+    </extension>
+
+    <extension id="ru.naumen.gp.crawled.CrawledIndexingFilter"
+               name="Crawled Indexing Filter"
+               point="org.apache.nutch.indexer.IndexingFilter">
+        <implementation id="CrawledIndexingFilter"
+                        class="ru.naumen.gp.crawled.CrawledIndexingFilter"/>
+    </extension>
+
+    <extension id="ru.naumen.gp.crawled.CrawledParseFilter"
+               name="Crawled Parse Filter"
+               point="org.apache.nutch.parse.HtmlParseFilter">
+        <implementation id="CrawledParseFilter"
+                        class="ru.naumen.gp.crawled.CrawledParseFilter"/>
+    </extension>
 
 </plugin>
