@@ -74,8 +74,7 @@ public class CrawledIndexWriter implements IndexWriter {
     }
 
     private void add(NutchDocument doc) throws IOException {
-        String strippedContent = (String) doc.getFieldValue("strippedContent");
-        if (strippedContent != null && !strippedContent.trim().isEmpty()) {
+        if (doc.getFieldValue(SIGNIFICANT_CONTENT) != null) {
             forAdd.add(doc);
             if (forAdd.size() >= batchSize) commit();
         }
