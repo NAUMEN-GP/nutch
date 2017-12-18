@@ -26,6 +26,9 @@ import java.io.PushbackInputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URL;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.nutch.crawl.CrawlDatum;
@@ -36,6 +39,9 @@ import org.apache.nutch.net.protocols.Response;
 import org.apache.nutch.protocol.ProtocolException;
 import org.apache.nutch.protocol.http.api.HttpException;
 import org.apache.nutch.protocol.http.api.HttpBase;
+
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 
 /* Most of this code was borrowed from protocol-htmlunit; which in turn borrowed it from protocol-httpclient */
 
@@ -52,6 +58,10 @@ public class HttpResponse implements Response {
   /** The nutch configuration */
   private Configuration conf = null;
 
+  protected enum Scheme {
+    HTTP, HTTPS,
+  }
+
   public HttpResponse(Http http, URL url, CrawlDatum datum) throws ProtocolException, IOException {
 
     this.conf = http.getConf();
@@ -60,8 +70,14 @@ public class HttpResponse implements Response {
     this.orig = url.toString();
     this.base = url.toString();
 
-    if (!"http".equals(url.getProtocol()))
-      throw new HttpException("Not an HTTP url:" + url);
+    Scheme scheme;
+    if ("http".equals(url.getProtocol())) {
+      scheme = Scheme.HTTP;
+    } else if ("https".equals(url.getProtocol())) {
+      scheme = Scheme.HTTPS;
+    } else {
+      throw new HttpException("Unknown scheme (not http/https) for url:" + url);
+    }
 
     if (Http.LOG.isTraceEnabled()) {
       Http.LOG.trace("fetching " + url);
@@ -77,7 +93,7 @@ public class HttpResponse implements Response {
     int port;
     String portString;
     if (url.getPort() == -1) {
-      port = 80;
+      port = scheme == Scheme.HTTP ? 80 : 443;
       portString = "";
     } else {
       port = url.getPort();
@@ -94,6 +110,27 @@ public class HttpResponse implements Response {
       int sockPort = http.useProxy(url) ? http.getProxyPort() : port;
       InetSocketAddress sockAddr = new InetSocketAddress(sockHost, sockPort);
       socket.connect(sockAddr, http.getTimeout());
+
+      // make socket SSL'ed (if https)
+      if (scheme == Scheme.HTTPS) {
+        SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
+        SSLSocket sslsocket = (SSLSocket) factory.createSocket(socket, sockHost, sockPort, true);
+        sslsocket.setUseClientMode(true);
+
+        // Get the protocols and ciphers supported by this JVM
+        Set<String> protocols = new HashSet<String>(Arrays.asList(sslsocket.getSupportedProtocols()));
+        Set<String> ciphers = new HashSet<String>(Arrays.asList(sslsocket.getSupportedCipherSuites()));
+
+        // Intersect with preferred protocols and ciphers
+        protocols.retainAll(http.getTlsPreferredProtocols());
+        ciphers.retainAll(http.getTlsPreferredCipherSuites());
+
+        sslsocket.setEnabledProtocols(protocols.toArray(new String[protocols.size()]));
+        sslsocket.setEnabledCipherSuites(ciphers.toArray(new String[ciphers.size()]));
+
+        sslsocket.startHandshake();
+        socket = sslsocket;
+      }
 
       // make request
       OutputStream req = socket.getOutputStream();
