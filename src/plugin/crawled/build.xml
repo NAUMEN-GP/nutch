@@ -15,7 +15,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 -->
-<project name="indexer-crawled" default="jar-core">
+<project name="crawled" default="jar-core">
 
   <import file="../build-plugin.xml" />
 

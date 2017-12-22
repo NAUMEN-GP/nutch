@@ -15,7 +15,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 -->
-<project name="indexer-crawled" default="deps-jar" xmlns:ivy="antlib:org.apache.ivy.ant">
+<project name="crawled" default="deps-jar" xmlns:ivy="antlib:org.apache.ivy.ant">
 
     <property name="ivy.install.version" value="2.1.0" />
     <condition property="ivy.home" value="${env.IVY_HOME}">

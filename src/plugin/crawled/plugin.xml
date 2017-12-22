@@ -15,10 +15,10 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 -->
-<plugin id="indexer-crawled" name="CrawledIndexUtil" version="1.0.0" provider-name="gp.naumen.ru">
+<plugin id="crawled" name="Crawled utils" version="1.0.0" provider-name="gp.naumen.ru">
 
     <runtime>
-        <library name="indexer-crawled.jar">
+        <library name="crawled.jar">
             <export name="*"/>
         </library>
         <library name="httpclient-4.5.3.jar"/>
