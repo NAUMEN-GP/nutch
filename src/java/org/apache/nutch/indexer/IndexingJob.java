@@ -285,27 +285,6 @@ public class IndexingJob extends NutchTool implements Tool {
       }
     }
 
-    if(args.containsKey(Nutch.ARG_SEGMENTDIR)){
-      isSegment = true;
-      Path segmentsDir;
-      Object segDir = args.get(Nutch.ARG_SEGMENTDIR);
-      if(segDir instanceof Path) {
-        segmentsDir = (Path) segDir;
-      }
-      else {
-        segmentsDir = new Path(segDir.toString());
-      }
-      FileSystem fs = segmentsDir.getFileSystem(getConf());
-      FileStatus[] fstats = fs.listStatus(segmentsDir,
-          HadoopFSUtil.getPassDirectoriesFilter(fs));
-      Path[] files = HadoopFSUtil.getPaths(fstats);
-      for (Path p : files) {
-        if (SegmentChecker.isIndexable(p,fs)) {
-          segments.add(p);
-        }
-      }     
-    }
-
     if(args.containsKey(Nutch.ARG_SEGMENT)){
       isSegment = true;
       Object seg = args.get(Nutch.ARG_SEGMENT);
@@ -319,17 +298,27 @@ public class IndexingJob extends NutchTool implements Tool {
     }
 
     if(!isSegment){
-      String segment_dir = crawlId+"/segments";
-      File segmentsDir = new File(segment_dir);
-      File[] segmentsList = segmentsDir.listFiles();  
-      Arrays.sort(segmentsList, (f1, f2) -> {
-        if(f1.lastModified()>f2.lastModified())
-          return -1;
-        else
-          return 0;
-      });
-      Path segment = new Path(segmentsList[0].getPath());
-      segments.add(segment);
+      Path segmentsDir;
+      if (args.containsKey(Nutch.ARG_SEGMENTDIR)) {
+        Object segDir = args.get(Nutch.ARG_SEGMENTDIR);
+        if (segDir instanceof Path) {
+          segmentsDir = (Path) segDir;
+        } else {
+          segmentsDir = new Path(segDir.toString());
+        }
+      } else {
+        segmentsDir = new Path(crawlId+"/segments");
+      }
+
+      FileSystem fs = segmentsDir.getFileSystem(getConf());
+      FileStatus[] fstats = fs.listStatus(segmentsDir,
+              HadoopFSUtil.getPassDirectoriesFilter(fs));
+      Path[] files = HadoopFSUtil.getPaths(fstats);
+      for (Path p : files) {
+        if (SegmentChecker.isIndexable(p,fs)) {
+          segments.add(p);
+        }
+      }
     }
 
     if(args.containsKey("noCommit")){
