@@ -1,7 +1,6 @@
 package ru.naumen.gp.crawled;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.http.entity.ContentType;
 import org.apache.nutch.parse.*;
 import org.apache.nutch.protocol.Content;
 import org.jsoup.Jsoup;
@@ -14,14 +13,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.DocumentFragment;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.nio.charset.Charset;
 import java.util.*;
 
-import static ru.naumen.gp.crawled.CrawledConstants.BLACKLIST_AREAS_SELECTOR;
-import static ru.naumen.gp.crawled.CrawledConstants.CONTENT_SELECTOR;
-import static ru.naumen.gp.crawled.CrawledConstants.SIGNIFICANT_CONTENT;
+import static ru.naumen.gp.crawled.CrawledConstants.*;
 
 public class CrawledParseFilter implements HtmlParseFilter {
 
@@ -35,7 +29,10 @@ public class CrawledParseFilter implements HtmlParseFilter {
     @Override
     public ParseResult filter(Content content, ParseResult parseResult, HTMLMetaTags metaTags, DocumentFragment doc) {
         Document jsoupDoc = parseDocument(content);
-        Parse parse = parseResult.get(content.getUrl());
+        ParseData parseData = parseResult.get(content.getUrl()).getData();
+
+        String title = jsoupDoc.head().selectFirst("title").text();
+        parseData.getContentMeta().set(CLEAN_TITLE, title);
 
         if (significantContentSelector != null) {
             Document selected = selectElements(jsoupDoc);
@@ -50,23 +47,21 @@ public class CrawledParseFilter implements HtmlParseFilter {
                 LOG.trace(significantContent);
             }
 
-            parse.getData().getContentMeta().set(SIGNIFICANT_CONTENT, significantContent);
+            parseData.getContentMeta().set(SIGNIFICANT_CONTENT, significantContent);
         }
 
         if (blacklistAreasSelector != null) {
-            Outlink[] inputOutlinks = parse.getData().getOutlinks();
+            Outlink[] inputOutlinks = parseData.getOutlinks();
             Outlink[] outputOutlinks = filterOutlinks(jsoupDoc, inputOutlinks);
-            parse.getData().setOutlinks(outputOutlinks);
+            parseData.setOutlinks(outputOutlinks);
         }
 
         return parseResult;
     }
 
     private Document parseDocument(Content content) {
-        //Charset charset = ContentType.parse(content.getContentType()).getCharset();
-        //String docStr = new String(content.getContent(), charset != null ? charset : Charset.defaultCharset());
         String docStr = new String(content.getContent());
-        return Jsoup.parse(docStr);
+        return Jsoup.parse(docStr, content.getBaseUrl());
     }
 
     private Document selectElements(Document doc) {
@@ -86,11 +81,16 @@ public class CrawledParseFilter implements HtmlParseFilter {
 
             //collect links from remaining
             Elements nonBlacklisted = doc.body().select("a[href], area[href]");
+
+            if (LOG.isTraceEnabled()) {
+                LOG.trace("notBlacklistedElems: " + nonBlacklisted.size());
+            }
+
             Set<String> nonBlacklistedLinks = new HashSet<>(nonBlacklisted.size());
             for (Element linkElem : nonBlacklisted) {
-                String attr = linkElem.absUrl("href");
-                if (attr != null) {
-                    nonBlacklistedLinks.add(attr);
+                String href = linkElem.absUrl("href").trim();
+                if (!"".equals(href)) {
+                    nonBlacklistedLinks.add(href);
                 }
             }
 
@@ -101,7 +101,7 @@ public class CrawledParseFilter implements HtmlParseFilter {
             //filter out previously collected outlinks from whole page
             ArrayList<Outlink> filtered = new ArrayList<>(Math.min(nonBlacklistedLinks.size(), parsedOutlinks.length));
             for (Outlink o: parsedOutlinks) {
-                if (nonBlacklistedLinks.contains(o.getToUrl())) {
+                if (nonBlacklistedLinks.contains(o.getToUrl().trim())) {
                     filtered.add(o);
 
                     if (LOG.isTraceEnabled()) {

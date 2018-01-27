@@ -8,9 +8,11 @@ import org.apache.nutch.indexer.IndexingException;
 import org.apache.nutch.indexer.IndexingFilter;
 import org.apache.nutch.indexer.NutchDocument;
 import org.apache.nutch.parse.Parse;
+import org.apache.nutch.parse.ParseData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static ru.naumen.gp.crawled.CrawledConstants.CLEAN_TITLE;
 import static ru.naumen.gp.crawled.CrawledConstants.CONTENT_MIN_LENGTH;
 import static ru.naumen.gp.crawled.CrawledConstants.SIGNIFICANT_CONTENT;
 
@@ -22,7 +24,8 @@ public class CrawledIndexingFilter implements IndexingFilter {
 
     @Override
     public NutchDocument filter(NutchDocument doc, Parse parse, Text url, CrawlDatum datum, Inlinks inlinks) throws IndexingException {
-        String significantContent = parse.getData().getMeta(SIGNIFICANT_CONTENT);
+        ParseData parseData = parse.getData();
+        String significantContent = parseData.getMeta(SIGNIFICANT_CONTENT);
 
         if (significantContent != null && significantContent.trim().length() >= contentMinLength) {
             if (LOG.isTraceEnabled()) {
@@ -30,6 +33,7 @@ public class CrawledIndexingFilter implements IndexingFilter {
             }
 
             doc.add(SIGNIFICANT_CONTENT, significantContent);
+            doc.add(CLEAN_TITLE, parseData.getMeta(CLEAN_TITLE));
             return doc;
         } else {
             if (LOG.isTraceEnabled()) {

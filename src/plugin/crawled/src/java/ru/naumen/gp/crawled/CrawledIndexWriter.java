@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static ru.naumen.gp.crawled.CrawledConstants.CLEAN_TITLE;
 import static ru.naumen.gp.crawled.CrawledConstants.SIGNIFICANT_CONTENT;
 
 public class CrawledIndexWriter implements IndexWriter {
@@ -138,7 +139,7 @@ public class CrawledIndexWriter implements IndexWriter {
         Collection<Map<String, Object>> docs = new ArrayList<>(forAdd.size());
         for (NutchDocument doc : forAdd) {
             Map<String, Object> docMap = new HashMap<>();
-            docMap.put("title", doc.getFieldValue("title"));
+            docMap.put("title", doc.getFieldValue(CLEAN_TITLE));
             docMap.put("url", doc.getFieldValue("url"));
             docMap.put("checksum", doc.getFieldValue("digest"));
             docMap.put("tstamp", doc.getFieldValue("tstamp"));

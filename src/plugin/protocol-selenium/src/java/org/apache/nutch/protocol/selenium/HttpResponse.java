@@ -26,13 +26,11 @@ import java.io.PushbackInputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URL;
-import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.http.entity.ContentType;
 import org.apache.nutch.crawl.CrawlDatum;
 import org.apache.nutch.metadata.Metadata;
 import org.apache.nutch.metadata.SpellCheckedMetadata;
@@ -194,8 +192,6 @@ public class HttpResponse implements Response {
       // handle with Selenium only if content type in HTML or XHTML 
       if (contentType != null) {
         if (contentType.contains("text/html") || contentType.contains("application/xhtml")) {
-          //Charset charset = ContentType.parse(contentType).getCharset();
-          //readPlainContent(url, charset != null ? charset : Charset.defaultCharset());
           readPlainContent(url);
         } else {
           try {
@@ -273,7 +269,7 @@ public class HttpResponse implements Response {
 
   private void readPlainContent(URL url) throws IOException {
     String page = HttpWebClient.getHtmlPage(url.toString(), conf);
-    content = page.getBytes();
+    content = page.getBytes("UTF-8");
   }
 
   private int parseStatusLine(PushbackInputStream in, StringBuilder line) throws IOException, HttpException {
