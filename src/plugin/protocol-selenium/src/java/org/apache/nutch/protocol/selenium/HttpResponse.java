@@ -194,8 +194,9 @@ public class HttpResponse implements Response {
       // handle with Selenium only if content type in HTML or XHTML 
       if (contentType != null) {
         if (contentType.contains("text/html") || contentType.contains("application/xhtml")) {
-          Charset charset = ContentType.parse(contentType).getCharset();
-          readPlainContent(url, charset != null ? charset : Charset.defaultCharset());
+          //Charset charset = ContentType.parse(contentType).getCharset();
+          //readPlainContent(url, charset != null ? charset : Charset.defaultCharset());
+          readPlainContent(url);
         } else {
           try {
             int contentLength = Integer.MAX_VALUE;
@@ -270,10 +271,9 @@ public class HttpResponse implements Response {
    * <implementation:Response> *
    * ------------------------- */
 
-  private void readPlainContent(URL url, Charset charset) throws IOException {
+  private void readPlainContent(URL url) throws IOException {
     String page = HttpWebClient.getHtmlPage(url.toString(), conf);
-
-    content = page.getBytes(charset);
+    content = page.getBytes();
   }
 
   private int parseStatusLine(PushbackInputStream in, StringBuilder line) throws IOException, HttpException {
@@ -360,12 +360,12 @@ public class HttpResponse implements Response {
     int c;
     while ((c = in.read()) != -1) {
       if (c == '\r') {
+        skip(in, '\n');
         c = '\n';
       }
 
       if (c == '\n') {
-        if (line.length() > 0 && allowContinuedLine && (peek(in) == ' ' || peek(in) == '\t')) {
-          in.read();
+        if (line.length() > 0 && allowContinuedLine && skip(in, ' ', '\t')) {
           c = ' ';
         } else {
           return line.length();
@@ -376,6 +376,17 @@ public class HttpResponse implements Response {
     }
 
     throw new EOFException();
+  }
+
+  private static boolean skip(PushbackInputStream in, char... chars) throws IOException {
+    for (char ch: chars) {
+      if (peek(in) == ch) {
+        in.read();
+        return true;
+      }
+    }
+
+    return false;
   }
 
   private static int peek(PushbackInputStream in) throws IOException {

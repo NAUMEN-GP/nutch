@@ -63,8 +63,9 @@ public class CrawledParseFilter implements HtmlParseFilter {
     }
 
     private Document parseDocument(Content content) {
-        Charset charset = ContentType.parse(content.getContentType()).getCharset();
-        String docStr = new String(content.getContent(), charset != null ? charset : Charset.defaultCharset());
+        //Charset charset = ContentType.parse(content.getContentType()).getCharset();
+        //String docStr = new String(content.getContent(), charset != null ? charset : Charset.defaultCharset());
+        String docStr = new String(content.getContent());
         return Jsoup.parse(docStr);
     }
 
@@ -114,6 +115,10 @@ public class CrawledParseFilter implements HtmlParseFilter {
             result = filtered.toArray(new Outlink[filtered.size()]);
         } else {
             result = parsedOutlinks;
+        }
+
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("Approved outlinks: " + result.length + " from " + parsedOutlinks.length);
         }
 
         return result;
