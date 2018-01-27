@@ -1,6 +1,7 @@
 package ru.naumen.gp.crawled;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.http.entity.ContentType;
 import org.apache.nutch.parse.*;
 import org.apache.nutch.protocol.Content;
 import org.jsoup.Jsoup;
@@ -15,6 +16,7 @@ import org.w3c.dom.DocumentFragment;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.*;
 
 import static ru.naumen.gp.crawled.CrawledConstants.BLACKLIST_AREAS_SELECTOR;
@@ -61,11 +63,9 @@ public class CrawledParseFilter implements HtmlParseFilter {
     }
 
     private Document parseDocument(Content content) {
-        try {
-            return Jsoup.parse(new ByteArrayInputStream(content.getContent()), null, content.getBaseUrl());
-        } catch (IOException e) {
-            throw new RuntimeException(e.getMessage(), e);
-        }
+        Charset charset = ContentType.parse(content.getContentType()).getCharset();
+        String docStr = new String(content.getContent(), charset != null ? charset : Charset.defaultCharset());
+        return Jsoup.parse(docStr);
     }
 
     private Document selectElements(Document doc) {

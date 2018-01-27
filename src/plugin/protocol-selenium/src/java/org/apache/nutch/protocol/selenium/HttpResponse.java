@@ -26,11 +26,13 @@ import java.io.PushbackInputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URL;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.http.entity.ContentType;
 import org.apache.nutch.crawl.CrawlDatum;
 import org.apache.nutch.metadata.Metadata;
 import org.apache.nutch.metadata.SpellCheckedMetadata;
@@ -135,19 +137,16 @@ public class HttpResponse implements Response {
       // make request
       OutputStream req = socket.getOutputStream();
 
-      StringBuffer reqStr = new StringBuffer("GET ");
+      StringBuilder reqStr = new StringBuilder("GET ");
       if (http.useProxy(url)) {
-        reqStr.append(url.getProtocol() + "://" + host + portString + path);
+        reqStr.append(url.getProtocol()).append("://").append(host).append(portString).append(path);
       } else {
         reqStr.append(path);
       }
 
       reqStr.append(" HTTP/1.0\r\n");
 
-      reqStr.append("Host: ");
-      reqStr.append(host);
-      reqStr.append(portString);
-      reqStr.append("\r\n");
+      reqStr.append("Host: ").append(host).append(portString).append("\r\n");
 
       reqStr.append("Accept-Encoding: x-gzip, gzip, deflate\r\n");
 
@@ -157,23 +156,17 @@ public class HttpResponse implements Response {
           Http.LOG.error("User-agent is not set!");
         }
       } else {
-        reqStr.append("User-Agent: ");
-        reqStr.append(userAgent);
-        reqStr.append("\r\n");
+        reqStr.append("User-Agent: ").append(userAgent).append("\r\n");
       }
 
-      reqStr.append("Accept-Language: ");
-      reqStr.append(this.http.getAcceptLanguage());
-      reqStr.append("\r\n");
+      reqStr.append("Accept-Language: ").append(this.http.getAcceptLanguage()).append("\r\n");
 
-      reqStr.append("Accept: ");
-      reqStr.append(this.http.getAccept());
-      reqStr.append("\r\n");
+      reqStr.append("Accept: ").append(this.http.getAccept()).append("\r\n");
 
       if (datum.getModifiedTime() > 0) {
-        reqStr.append("If-Modified-Since: " + HttpDateFormat.toString(datum.getModifiedTime()));
-        reqStr.append("\r\n");
+        reqStr.append("If-Modified-Since: ").append(HttpDateFormat.toString(datum.getModifiedTime())).append("\r\n");
       }
+
       reqStr.append("\r\n");
 
       byte[] reqBytes = reqStr.toString().getBytes();
@@ -182,10 +175,9 @@ public class HttpResponse implements Response {
       req.flush();
 
       PushbackInputStream in = // process response
-          new PushbackInputStream(new BufferedInputStream(socket.getInputStream(), Http.BUFFER_SIZE),
-              Http.BUFFER_SIZE);
+          new PushbackInputStream(new BufferedInputStream(socket.getInputStream(), Http.BUFFER_SIZE), Http.BUFFER_SIZE);
 
-      StringBuffer line = new StringBuffer();
+      StringBuilder line = new StringBuilder();
 
       boolean haveSeenNonContinueStatus = false;
       while (!haveSeenNonContinueStatus) {
@@ -202,7 +194,8 @@ public class HttpResponse implements Response {
       // handle with Selenium only if content type in HTML or XHTML 
       if (contentType != null) {
         if (contentType.contains("text/html") || contentType.contains("application/xhtml")) {
-          readPlainContent(url);
+          Charset charset = ContentType.parse(contentType).getCharset();
+          readPlainContent(url, charset != null ? charset : Charset.defaultCharset());
         } else {
           try {
             int contentLength = Integer.MAX_VALUE;
@@ -277,13 +270,13 @@ public class HttpResponse implements Response {
    * <implementation:Response> *
    * ------------------------- */
 
-  private void readPlainContent(URL url) throws IOException {
+  private void readPlainContent(URL url, Charset charset) throws IOException {
     String page = HttpWebClient.getHtmlPage(url.toString(), conf);
 
-    content = page.getBytes("UTF-8");
+    content = page.getBytes(charset);
   }
 
-  private int parseStatusLine(PushbackInputStream in, StringBuffer line) throws IOException, HttpException {
+  private int parseStatusLine(PushbackInputStream in, StringBuilder line) throws IOException, HttpException {
     readLine(in, line, false);
 
     int codeStart = line.indexOf(" ");
@@ -304,7 +297,7 @@ public class HttpResponse implements Response {
     return code;
   }
 
-  private void processHeaderLine(StringBuffer line) throws IOException, HttpException {
+  private void processHeaderLine(StringBuilder line) throws IOException, HttpException {
 
     int colonIndex = line.indexOf(":"); // key is up to colon
     if (colonIndex == -1) {
@@ -330,7 +323,7 @@ public class HttpResponse implements Response {
   }
 
   // Adds headers to our headers Metadata
-  private void parseHeaders(PushbackInputStream in, StringBuffer line) throws IOException, HttpException {
+  private void parseHeaders(PushbackInputStream in, StringBuilder line) throws IOException, HttpException {
 
     while (readLine(in, line, true) != 0) {
 
@@ -360,32 +353,28 @@ public class HttpResponse implements Response {
     }
   }
 
-  private static int readLine(PushbackInputStream in, StringBuffer line, boolean allowContinuedLine)
+  private static int readLine(PushbackInputStream in, StringBuilder line, boolean allowContinuedLine)
       throws IOException {
     line.setLength(0);
-    for (int c = in.read(); c != -1; c = in.read()) {
-      switch (c) {
-      case '\r':
-        if (peek(in) == '\n') {
-          in.read();
-        }
-      case '\n':
-        if (line.length() > 0) {
-          // at EOL -- check for continued line if the current
-          // (possibly continued) line wasn't blank
-          if (allowContinuedLine)
-            switch (peek(in)) {
-            case ' ':
-            case '\t': // line is continued
-              in.read();
-              continue;
-            }
-        }
-        return line.length(); // else complete
-      default:
-        line.append((char) c);
+
+    int c;
+    while ((c = in.read()) != -1) {
+      if (c == '\r') {
+        c = '\n';
       }
+
+      if (c == '\n') {
+        if (line.length() > 0 && allowContinuedLine && (peek(in) == ' ' || peek(in) == '\t')) {
+          in.read();
+          c = ' ';
+        } else {
+          return line.length();
+        }
+      }
+
+      line.append((char) c);
     }
+
     throw new EOFException();
   }
 
