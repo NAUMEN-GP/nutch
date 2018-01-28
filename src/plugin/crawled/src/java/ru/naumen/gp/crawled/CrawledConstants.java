@@ -13,4 +13,5 @@ public interface CrawledConstants {
     String BLACKLIST_AREAS_SELECTOR = CRAWLED_PREFIX + "blacklistAreas";
 
     String SIGNIFICANT_CONTENT = "significantContent";
+    String CLEAN_TITLE = "cleanTitle";
 }

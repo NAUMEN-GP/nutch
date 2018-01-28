@@ -176,7 +176,7 @@ public class HttpWebClient {
   }
 
   /**
-   * Function for obtaining the HTML BODY using the selected
+   * Function for obtaining the page source, using the selected
    * {@link org.openqa.selenium.WebDriver}.
    * There are a number of configuration properties within
    * <code>nutch-site.xml</code> which determine whether to

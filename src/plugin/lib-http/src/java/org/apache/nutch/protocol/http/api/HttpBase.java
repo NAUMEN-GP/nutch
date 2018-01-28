@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 // Logging imports
+import org.apache.nutch.metadata.HttpHeaders;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -282,13 +283,13 @@ public abstract class HttpBase implements Protocol {
       byte[] content = response.getContent();
       Content c = new Content(u.toString(), u.toString(),
           (content == null ? EMPTY_CONTENT : content),
-          response.getHeader("Content-Type"), response.getHeaders(), this.conf);
+          response.getHeader(HttpHeaders.CONTENT_TYPE), response.getHeaders(), this.conf);
 
       if (code == 200) { // got a good response
         return new ProtocolOutput(c); // return it
 
       } else if (code >= 300 && code < 400) { // handle redirect
-        String location = response.getHeader("Location");
+        String location = response.getHeader(HttpHeaders.LOCATION);
         // some broken servers, such as MS IIS, use lowercase header name...
         if (location == null)
           location = response.getHeader("location");
