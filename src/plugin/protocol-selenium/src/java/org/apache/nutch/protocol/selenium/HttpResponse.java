@@ -165,14 +165,23 @@ public class HttpResponse implements Response {
         haveSeenNonContinueStatus = code != 100; // 100 is "Continue"
       }
 
-      // Get Content type header
       String contentType = getHeader(Response.CONTENT_TYPE);
-
-      // handle with Selenium only if content type in HTML or XHTML 
       if (contentType != null && (contentType.contains("text/html") || contentType.contains("application/xhtml"))) {
         readWithSelenium(url);
       } else {
-        readRaw(in);
+        String transferEncoding = getHeader(Response.TRANSFER_ENCODING);
+        if (transferEncoding != null && "chunked".equalsIgnoreCase(transferEncoding.trim())) {
+          readChunkedContent(in, line);
+        } else {
+          readPlainContent(in);
+        }
+
+        String contentEncoding = getHeader(Response.CONTENT_ENCODING);
+        if ("gzip".equals(contentEncoding) || "x-gzip".equals(contentEncoding)) {
+          content = http.processGzipEncoded(content, url);
+        } else if ("deflate".equals(contentEncoding)) {
+          content = http.processDeflateEncoded(content, url);
+        }
       }
 
     } finally {
@@ -214,7 +223,7 @@ public class HttpResponse implements Response {
     content = page.getBytes("UTF-8");
   }
 
-  private void readRaw(InputStream in) throws HttpException, IOException {
+  private void readPlainContent(InputStream in) throws HttpException, IOException {
     int contentLength = Integer.MAX_VALUE; // get content length
     String contentLengthString = headers.get(Response.CONTENT_LENGTH);
     if (contentLengthString != null) {
@@ -258,6 +267,61 @@ public class HttpResponse implements Response {
     }
 
     content = out.toByteArray();
+  }
+
+  private void readChunkedContent(PushbackInputStream in, StringBuilder line)
+          throws HttpException, IOException {
+    int contentBytesRead = 0;
+    byte[] bytes = new byte[Http.BUFFER_SIZE];
+    ByteArrayOutputStream out = new ByteArrayOutputStream(Http.BUFFER_SIZE);
+
+    while (true) {
+      if (Http.LOG.isTraceEnabled()) {
+        Http.LOG.trace("Http: starting chunk");
+      }
+
+      readLine(in, line, false);
+
+      int pos = line.indexOf(";");
+      String chunkLenStr = (pos < 0 ? line.toString() : line.substring(0, pos)).trim();
+
+      int chunkLen;
+      try {
+        chunkLen = Integer.parseInt(chunkLenStr, 16);
+      } catch (NumberFormatException e) {
+        throw new HttpException("bad chunk length: " + line.toString());
+      }
+
+      if (chunkLen == 0) {
+        break;
+      }
+
+      if (http.getMaxContent() >= 0 && (contentBytesRead + chunkLen) > http.getMaxContent()) {
+        chunkLen = http.getMaxContent() - contentBytesRead;
+      }
+
+      // read one chunk
+      int chunkBytesRead = 0;
+      while (chunkBytesRead < chunkLen) {
+
+        int toRead = (chunkLen - chunkBytesRead) < Http.BUFFER_SIZE ? (chunkLen - chunkBytesRead) : Http.BUFFER_SIZE;
+        int len = in.read(bytes, 0, toRead);
+
+        if (len == -1)
+          throw new HttpException("chunk eof after " + contentBytesRead
+                  + " bytes in successful chunks" + " and " + chunkBytesRead
+                  + " in current chunk");
+
+        out.write(bytes, 0, len);
+        chunkBytesRead += len;
+      }
+
+      readLine(in, line, false);
+
+    }
+
+    content = out.toByteArray();
+    parseHeaders(in, line);
   }
 
   private int parseStatusLine(PushbackInputStream in, StringBuilder line) throws IOException, HttpException {
