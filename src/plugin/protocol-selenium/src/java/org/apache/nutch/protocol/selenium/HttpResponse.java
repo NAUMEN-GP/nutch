@@ -33,9 +33,6 @@ import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URL;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 
 /* Most of this code was borrowed from protocol-htmlunit; which in turn borrowed it from protocol-httpclient */
 
@@ -110,18 +107,6 @@ public class HttpResponse implements Response {
         SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
         SSLSocket sslsocket = (SSLSocket) factory.createSocket(socket, sockHost, sockPort, true);
         sslsocket.setUseClientMode(true);
-
-        // Get the protocols and ciphers supported by this JVM
-        Set<String> protocols = new HashSet<String>(Arrays.asList(sslsocket.getSupportedProtocols()));
-        Set<String> ciphers = new HashSet<String>(Arrays.asList(sslsocket.getSupportedCipherSuites()));
-
-        // Intersect with preferred protocols and ciphers
-        protocols.retainAll(http.getTlsPreferredProtocols());
-        ciphers.retainAll(http.getTlsPreferredCipherSuites());
-
-        sslsocket.setEnabledProtocols(protocols.toArray(new String[protocols.size()]));
-        sslsocket.setEnabledCipherSuites(ciphers.toArray(new String[ciphers.size()]));
-
         sslsocket.startHandshake();
         socket = sslsocket;
       }
