@@ -17,18 +17,6 @@
 package org.apache.nutch.protocol.selenium;
 
 // JDK imports
-import java.io.BufferedInputStream;
-import java.io.EOFException;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.PushbackInputStream;
-import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.net.URL;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.nutch.crawl.CrawlDatum;
@@ -38,10 +26,16 @@ import org.apache.nutch.net.protocols.HttpDateFormat;
 import org.apache.nutch.net.protocols.Response;
 import org.apache.nutch.protocol.ProtocolException;
 import org.apache.nutch.protocol.http.api.HttpException;
-import org.apache.nutch.protocol.http.api.HttpBase;
 
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
+import java.io.*;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.URL;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 /* Most of this code was borrowed from protocol-htmlunit; which in turn borrowed it from protocol-httpclient */
 
@@ -190,48 +184,11 @@ public class HttpResponse implements Response {
       String contentType = getHeader(Response.CONTENT_TYPE);
 
       // handle with Selenium only if content type in HTML or XHTML 
-      if (contentType != null) {
-        if (contentType.contains("text/html") || contentType.contains("application/xhtml")) {
-          readPlainContent(url);
-        } else {
-          try {
-            int contentLength = Integer.MAX_VALUE;
-            String contentLengthString = headers.get(Response.CONTENT_LENGTH);
-            if (contentLengthString != null) {
-              try {
-                contentLength = Integer.parseInt(contentLengthString.trim());
-              } catch (NumberFormatException ex) {
-                throw new HttpException("bad content length: " + contentLengthString);
-              }
-            }
-
-            if (http.getMaxContent() >= 0 && contentLength > http.getMaxContent()) {
-              contentLength = http.getMaxContent();
-            }
-
-            byte[] buffer = new byte[HttpBase.BUFFER_SIZE];
-            int bufferFilled = 0;
-            int totalRead = 0;
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            while ((bufferFilled = in.read(buffer, 0, buffer.length)) != -1
-                && totalRead + bufferFilled <= contentLength) {
-              totalRead += bufferFilled;
-              out.write(buffer, 0, bufferFilled);
-            }
-
-            content = out.toByteArray();
-
-          } catch (Exception e) {
-            if (code == 200)
-              throw new IOException(e.toString());
-            // for codes other than 200 OK, we are fine with empty content
-          } finally {
-            if (in != null) {
-              in.close();
-            }
-          }
-        }
-      } 
+      if (contentType != null && (contentType.contains("text/html") || contentType.contains("application/xhtml"))) {
+        readWithSelenium(url);
+      } else {
+        readRaw(in);
+      }
 
     } finally {
       if (socket != null)
@@ -267,9 +224,55 @@ public class HttpResponse implements Response {
    * <implementation:Response> *
    * ------------------------- */
 
-  private void readPlainContent(URL url) throws IOException {
+  private void readWithSelenium(URL url) throws IOException {
     String page = HttpWebClient.getHtmlPage(url.toString(), conf);
     content = page.getBytes("UTF-8");
+  }
+
+  private void readRaw(InputStream in) throws HttpException, IOException {
+    int contentLength = Integer.MAX_VALUE; // get content length
+    String contentLengthString = headers.get(Response.CONTENT_LENGTH);
+    if (contentLengthString != null) {
+      contentLengthString = contentLengthString.trim();
+      try {
+        if (!contentLengthString.isEmpty())
+          contentLength = Integer.parseInt(contentLengthString);
+      } catch (NumberFormatException e) {
+        throw new HttpException("bad content length: " + contentLengthString);
+      }
+    }
+    if (http.getMaxContent() >= 0 && contentLength > http.getMaxContent()) {// limit download size
+      contentLength = http.getMaxContent();
+    }
+
+    // do not try to read if the contentLength is 0
+    if (contentLength == 0) {
+      content = new byte[0];
+      return;
+    }
+
+    ByteArrayOutputStream out = new ByteArrayOutputStream(Http.BUFFER_SIZE);
+    byte[] bytes = new byte[Http.BUFFER_SIZE];
+    int length = 0;
+
+    // read content
+    int i = in.read(bytes);
+    while (i != -1) {
+      out.write(bytes, 0, i);
+      length += i;
+      if (length >= contentLength) {
+        break;
+      }
+      if ((length + Http.BUFFER_SIZE) > contentLength) {
+        // reading next chunk may hit contentLength,
+        // must limit number of bytes read
+        i = in.read(bytes, 0, (contentLength - length));
+      } else {
+        i = in.read(bytes);
+      }
+    }
+
+    content = out.toByteArray();
   }
 
   private int parseStatusLine(PushbackInputStream in, StringBuilder line) throws IOException, HttpException {
