@@ -215,9 +215,14 @@ public class TikaParser implements org.apache.nutch.parse.Parser {
     ParseResult parseResult = ParseResult.createParseResult(content.getUrl(),
         new ParseImpl(text, parseData));
 
-    // run filters on parse
-    ParseResult filteredParse = this.htmlParseFilters.filter(content,
-        parseResult, metaTags, root);
+    // run filters on parse (if it is html)
+    ParseResult filteredParse;
+    if (mimeType.contains("html")) {
+      filteredParse = this.htmlParseFilters.filter(content, parseResult, metaTags, root);
+    } else {
+      filteredParse = parseResult;
+    }
+
     if (metaTags.getNoCache()) { // not okay to cache
       for (Map.Entry<org.apache.hadoop.io.Text, Parse> entry : filteredParse)
         entry.getValue().getData().getParseMeta()
