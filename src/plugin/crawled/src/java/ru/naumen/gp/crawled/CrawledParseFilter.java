@@ -35,25 +35,13 @@ public class CrawledParseFilter implements HtmlParseFilter {
         parseData.getContentMeta().set(CLEAN_TITLE, title);
 
         if (significantContentSelector != null) {
-            Document selected = selectElements(jsoupDoc);
-
-            if (LOG.isTraceEnabled()) {
-                LOG.trace(selected.html());
-            }
-
-            String significantContent = CLEANER.clean(selected).html();
-
-            if (LOG.isTraceEnabled()) {
-                LOG.trace(significantContent);
-            }
-
+            String significantContent = selectSignificantContent(jsoupDoc);
             parseData.getContentMeta().set(SIGNIFICANT_CONTENT, significantContent);
         }
 
         if (blacklistAreasSelector != null) {
-            Outlink[] inputOutlinks = parseData.getOutlinks();
-            Outlink[] outputOutlinks = filterOutlinks(jsoupDoc, inputOutlinks);
-            parseData.setOutlinks(outputOutlinks);
+            Outlink[] filteredOutlinks = filterOutlinks(jsoupDoc, parseData.getOutlinks());
+            parseData.setOutlinks(filteredOutlinks);
         }
 
         return parseResult;
@@ -64,23 +52,31 @@ public class CrawledParseFilter implements HtmlParseFilter {
         return Jsoup.parse(docStr, content.getBaseUrl());
     }
 
-    private Document selectElements(Document doc) {
-        Document wrapper = new Document(doc.baseUri());
-        for (Element matched : doc.select(significantContentSelector)) {
-            wrapper.appendChild(matched);
+    private String selectSignificantContent(Document doc) {
+        Elements selected = doc.select(significantContentSelector);
+
+        if (LOG.isTraceEnabled()) {
+            LOG.trace("selectedAsSignificant: " + selected.size());
         }
-        return wrapper;
+
+        Document selectionWrapper = new Document(doc.baseUri());
+        for (Element matched : selected) {
+            selectionWrapper.appendChild(matched.clone());
+        }
+
+        return CLEANER.clean(selectionWrapper).html();
     }
 
     private Outlink[] filterOutlinks(Document doc, Outlink[] parsedOutlinks) {
         Outlink[] result;
 
         if (parsedOutlinks.length > 0) {
+            Element bodyClone = doc.body().clone();
             //remove blacklisted areas
-            doc.body().select(blacklistAreasSelector).remove();
+            bodyClone.select(blacklistAreasSelector).remove();
 
             //collect links from remaining
-            Elements nonBlacklisted = doc.body().select("a[href], area[href]");
+            Elements nonBlacklisted = bodyClone.select("a[href], area[href]");
 
             if (LOG.isTraceEnabled()) {
                 LOG.trace("notBlacklistedElems: " + nonBlacklisted.size());
