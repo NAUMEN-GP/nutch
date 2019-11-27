@@ -5,4 +5,61 @@
 
 <configuration>
 
+    <property>
+        <name>http.agent.name</name>
+        <value>My Nutch</value>
+    </property>
+
+    <property>
+        <name>http.agent.version</name>
+        <value>Nutch-1.13-SNAPSHOT</value>
+    </property>
+
+    <property>
+        <name>http.agent.version</name>
+        <value>Nutch-1.13-SNAPSHOT</value>
+    </property>
+
+    <property>
+        <name>http.enable.cookie.header</name>
+        <value>true</value>
+    </property>
+
+    <property>
+        <name>db.fetch.interval.default</name>
+        <value>43200</value>
+    </property>
+
+    <property>
+        <name>db.fetch.interval.max</name>
+        <value>86400</value>
+    </property>
+
+    <property>
+        <name>db.ignore.external.links</name>
+        <value>true</value>
+    </property>
+
+    <property>
+        <name>fetcher.server.delay</name>
+        <value>1.0</value>
+    </property>
+
+    <property>
+        <name>plugin.includes</name>
+        <value>
+            protocol-selenium|urlfilter-regex|parse-(html|tika)|index-basic|crawled|scoring-depth|urlnormalizer-(pass|regex|basic)
+        </value>
+    </property>
+
+    <property>
+        <name>parser.character.encoding.default</name>
+        <value>utf-8</value>
+    </property>
+
+    <property>
+        <name>scoring.depth.max</name>
+        <value>5</value>
+    </property>
+
 </configuration>
